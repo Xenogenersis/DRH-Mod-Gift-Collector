@@ -28,11 +28,11 @@ class Main extends Mod {
         this.context = context;
         this.hideGiftAlert = context.settings.flag("hide_gift_alert","Hide gift alert","Hide the gift notification in town.",true);
 
-        this.acceptHealthBomb = context.settings.flag("accept_health_bomb","Accept Health Bomb","Automatically accept Health Bomb gifts.",false);
+        this.acceptHealthBomb = context.settings.flag("accept_health_bomb","Accept Health Bomb","Automatically accept Health Bomb gifts.",true);
 
-        this.acceptHealthShot = context.settings.flag("accept_health_shot","Accept Health Shot","Automatically accept Health Shot gifts.",false);
+        this.acceptHealthShot = context.settings.flag("accept_health_shot","Accept Health Shot","Automatically accept Health Shot gifts.",true);
 
-        this.acceptManaShot = context.settings.flag("accept_mana_shot","Accept Mana Shot","Automatically accept Mana Shot gifts.",false);
+        this.acceptManaShot = context.settings.flag("accept_mana_shot","Accept Mana Shot","Automatically accept Mana Shot gifts.",true);
 
         this.hideGiftAlert.onChange(function(enabled:Bool) {
             if (this.currentHomeState != null) {
