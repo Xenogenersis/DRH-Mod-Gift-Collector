@@ -5,24 +5,49 @@ import mods.api.Context;
 import mods.api.Mod;
 import account.GiftInfo;
 import town.HomeState;
-import flash.events.Event;
 import brain.stateMachine.State;
 import brain.stateMachine.StateMachine;
 import stateMachine.mainStateMachine.LoadingScreenState;
 
 class Main extends Mod {
+    private var context:Context;
+    
+    private var savedGiftAlertUp:Dynamic;
+    private var savedGiftAlertOver:Dynamic;
+    private var currentHomeState:HomeState;
 
-    private var Context:Context;
-    private var homeStateListenerRegistered:Bool = false;
+    private var savedGiftAlertUpParent:Dynamic;
+    private var savedGiftAlertOverParent:Dynamic;
+
+    private var hideGiftAlert;
+    private var acceptHealthBomb;
+    private var acceptHealthShot;
+    private var acceptManaShot;
 
     override public function init(context:Context):Void {
+        this.context = context;
+        this.hideGiftAlert = context.settings.flag("hide_gift_alert","Hide gift alert","Hide the gift notification in town.",true);
 
-        this.Context = context;
+        this.acceptHealthBomb = context.settings.flag("accept_health_bomb","Accept Health Bomb","Automatically accept Health Bomb gifts.",false);
+
+        this.acceptHealthShot = context.settings.flag("accept_health_shot","Accept Health Shot","Automatically accept Health Shot gifts.",false);
+
+        this.acceptManaShot = context.settings.flag("accept_mana_shot","Accept Mana Shot","Automatically accept Mana Shot gifts.",false);
+
+        this.hideGiftAlert.onChange(function(enabled:Bool) {
+            if (this.currentHomeState != null) {
+                updateGiftAlert();
+            }
+        });
 
         context.core.onStateEnter(
             function(machine:StateMachine, state:State) {
 
-                if (Std.isOfType(state, LoadingScreenState)){
+                if (Std.isOfType(state, LoadingScreenState)) {
+
+                    if (!this.acceptManaShot.value &&!this.acceptHealthShot.value &&!this.acceptHealthBomb.value)
+                        return;
+
                     var loadingScreenState:LoadingScreenState = cast state;
 
                     var accountInfo:Dynamic = loadingScreenState.mDBFacade.dbAccountInfo;
@@ -39,110 +64,71 @@ class Main extends Mod {
                         acceptRelevantGifts(accountInfo, items, gifts);
                     });
                 }
-                if (Std.isOfType(state, HomeState)){
-                      var homeState:HomeState = cast state;
 
-                    var giftAlertUp:Dynamic = Reflect.field(homeState, "mGiftAlertUp");
-                    var giftAlertOver:Dynamic = Reflect.field(homeState, "mGiftAlertOver");
+                if (Std.isOfType(state, HomeState)) {
+                    context.log("test");
 
-                    if (giftAlertUp != null && giftAlertUp.parent != null)
-                        giftAlertUp.parent.removeChild(giftAlertUp);
-
-                    if (giftAlertOver != null && giftAlertOver.parent != null)
-                        giftAlertOver.parent.removeChild(giftAlertOver);
+                    this.currentHomeState = cast state;
+                    updateGiftAlert();
                 }
             }
- 
-        );
+        );  
+        context.core.onStateExit(function(machine:StateMachine, state:State) {
+            if (Std.isOfType(state, HomeState)) {
+                this.currentHomeState = null;
+            }
+        });
     }
 
 
-    override public function ready(context:Context):Void {
+    private function updateGiftAlert():Void {
 
-        this.Context = context;
+        if (currentHomeState == null)
+            return;
 
-        var cls = Type.resolveClass("mods.online_tracker.Main");
+        var giftAlertUp:Dynamic = Reflect.field(currentHomeState, "mGiftAlertUp");
+        var giftAlertOver:Dynamic = Reflect.field(currentHomeState, "mGiftAlertOver");
 
-        if (cls != null) {
+        if (hideGiftAlert.value) {
 
-            var facade:Dynamic = Reflect.getProperty(context.core, "facade");
+            if (giftAlertUp != null && giftAlertUp.parent != null) {
+                savedGiftAlertUp = giftAlertUp;
+                savedGiftAlertUpParent = giftAlertUp.parent;
+                savedGiftAlertUpParent.removeChild(giftAlertUp);
+            }
 
-            if (facade == null)
-                return;
-
-            var eventManager:Dynamic = Reflect.getProperty(facade, "eventManager");
-
-            if (eventManager == null)
-                return;
-
-            var eventListener:Dynamic = null;
-
-            eventListener = function(event:Event) {
-                eventManager.removeEventListener("GIFTS_LOADED_EVENT",eventListener);
-
-                var accountInfo:Dynamic = Reflect.getProperty(
-                    facade,
-                    "dbAccountInfo"
-                );
-
-                if (accountInfo != null) {
-
-                    var items:Array<Dynamic> = processInventory(accountInfo);
-
-                    var gifts:Array<GiftInfo> = getAllGifts(accountInfo);
-
-                    acceptRelevantGifts(accountInfo, items, gifts);
-                }
-
-                registerHomeStateListener();
-            };
-
-            eventManager.addEventListener("GIFTS_LOADED_EVENT",eventListener);
+            if (giftAlertOver != null && giftAlertOver.parent != null) {
+                savedGiftAlertOver = giftAlertOver;
+                savedGiftAlertOverParent = giftAlertOver.parent;
+                savedGiftAlertOverParent.removeChild(giftAlertOver);
+            }
 
         } else {
 
-            registerHomeStateListener();
+            if (savedGiftAlertUp != null && savedGiftAlertUpParent != null) {
+                if (savedGiftAlertUp.parent == null)
+                    savedGiftAlertUpParent.addChild(savedGiftAlertUp);
+
+                savedGiftAlertUp = null;
+                savedGiftAlertUpParent = null;
+            }
+
+            if (savedGiftAlertOver != null && savedGiftAlertOverParent != null) {
+                if (savedGiftAlertOver.parent == null)
+                    savedGiftAlertOverParent.addChild(savedGiftAlertOver);
+
+                savedGiftAlertOver = null;
+                savedGiftAlertOverParent = null;
+            }
         }
     }
 
+
     // ========================================
-    // HOMESTATE LISTENER
+    // ACCEPT RELEVANT GIFTS
     // ========================================
 
-    private function registerHomeStateListener():Void {
-
-        if (homeStateListenerRegistered)
-            return;
-
-        homeStateListenerRegistered = true;
-
-        Context.core.onStateEnter(
-            function(machine:StateMachine, state:State) {
-
-                if (!Std.isOfType(state, HomeState))
-                    return;
-
-                var homeState:HomeState = cast state;
-
-                var accountInfo:Dynamic = homeState.mDBFacade.dbAccountInfo;
-
-                if (accountInfo == null)
-                    return;
-
-                var items:Array<Dynamic> = processInventory(accountInfo);
-
-                accountInfo.getGiftData(function() {
-
-                    var gifts:Array<GiftInfo> = getAllGifts(accountInfo);
-
-                    acceptRelevantGifts(accountInfo, items, gifts);
-
-                });
-            }
-        );
-    }
-
-    private function acceptRelevantGifts(accountInfo:Dynamic,items:Array<Dynamic>,gifts:Array<GiftInfo>):Void {
+    private function acceptRelevantGifts(accountInfo:Dynamic, items:Array<Dynamic>, gifts:Array<GiftInfo>):Void {
 
         var itemCounts:Map<Int, Int> = new Map();
 
@@ -156,16 +142,30 @@ class Main extends Mod {
 
         var offers:Map<Int, Int> = new Map();
 
-        offers.set(51399, 70016);
-        offers.set(51301, 60001);
-        offers.set(51398, 70017);
+        if (this.acceptHealthBomb.value)
+            offers.set(51301, 60001);
 
-        for (gift in gifts) {
+        if (this.acceptHealthShot.value)
+            offers.set(51399, 70016);
+
+        if (this.acceptManaShot.value)
+            offers.set(51398, 70017);
+
+        var acceptNext:Int->Void;
+
+        acceptNext = function(index:Int):Void {
+
+            if (index >= gifts.length)
+                return;
+
+            var gift = gifts[index];
 
             var offerId:Int = gift.offerId;
 
-            if (!offers.exists(offerId))
-                continue;
+            if (!offers.exists(offerId)) {
+                acceptNext(index + 1);
+                return;
+            }
 
             var itemId:Int = offers.get(offerId);
 
@@ -173,16 +173,24 @@ class Main extends Mod {
                 ? itemCounts.get(itemId)
                 : 0;
 
-            if (count >= 99)
-                continue;
+            if (count >= 99) {
+                acceptNext(index + 1);
+                return;
+            }
 
             accountInfo.acceptGift(
                 gift.requestId,
-                function() {}
-            );
+                function() {},
+                function() {
 
-            itemCounts.set(itemId, count + 1);
-        }
+                    itemCounts.set(itemId, count + 1);
+
+                    acceptNext(index + 1);
+                }
+            );
+        };
+
+        acceptNext(0);
     }
 
 
@@ -247,6 +255,7 @@ class Main extends Mod {
 
         return result;
     }
+
 
     // ========================================
     // GET ALL GIFTS

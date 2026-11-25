@@ -2,7 +2,7 @@
   "id": "gift_collector",
   "name": "Gift Collector",
   "description": "Automatically accepts selected gifts when inventory space is available and removes their town notification.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": "XξИӦĜεй三尺Šĭ乌",
   "api": "1.5",
   "entry": "Main",

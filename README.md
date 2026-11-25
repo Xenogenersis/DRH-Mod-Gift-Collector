@@ -15,9 +15,9 @@ It also removes the gift notification from the town screen, keeping the interfac
 ## Features
 
 - Automatically detects available gifts.
-- Automatically accepts selected gifts when sufficient inventory space is available.
+- Automatically accepts selected gifts during the loading screen when sufficient inventory space is available.
 - Checks inventory limits before accepting gifts.
-- Removes the gift notification from the town screen.
+- Optionally hides the gift notification from the town screen.
 - Avoids accepting gifts when the corresponding inventory is full.
 
 <!-- /drh:show -->
